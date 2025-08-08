@@ -1,0 +1,23 @@
+name: Deploy to Staging
+on:
+  workflow_run:
+    workflows: ["CI - Lint & Test"]
+    types:
+      - completed
+
+deploy-staging:
+  name: Deploy to Staging
+  needs: [build, test, security] # match your real job IDs
+  runs-on: ubuntu-latest
+  environment:
+    name: staging
+    url: https://staging.example.com
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Set up kubectl for kind
+      run: |
+        kind create cluster --name staging
+        kubectl cluster-info
+    - name: Deploy to staging
+      run: kubectl apply -f k8s/
