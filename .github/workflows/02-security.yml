@@ -1,9 +1,11 @@
 name: Security — Secrets & CodeQL
 
 on:
-  pull_request:
   push:
     branches: [ main ]
+  pull_request:
+  schedule:
+    - cron: "0 3 * * *"  # daily sweep
 
 permissions:
   contents: read
@@ -15,12 +17,16 @@ jobs:
     name: Secrets — TruffleHog
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      # use a valid tag; v2 is stable. You can also use @main.
-      - uses: trufflesecurity/trufflehog@v2
+      - name: Checkout
+        uses: actions/checkout@v4
+      # Pin to a known working tag; avoids "version not found"
+      - name: Run TruffleHog
+        uses: trufflesecurity/trufflehog@v3.63.8
         with:
           path: .
           json: true
+          entropy: true
+          regex: true
           fail: true
 
   codeql:
@@ -31,9 +37,14 @@ jobs:
       security-events: write
       actions: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
         with:
           languages: javascript
-      - uses: github/codeql-action/autobuild@v3
-      - uses: github/codeql-action/analyze@v3
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+
