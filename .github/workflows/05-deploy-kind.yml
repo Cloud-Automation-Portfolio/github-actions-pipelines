@@ -1,0 +1,70 @@
+name: Deploy to kind
+
+on:
+  workflow_run:
+    workflows: [ "build-push-sign" ]   # run after the image is built
+    types: [ completed ]
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: read
+
+    env:
+      CLUSTER_NAME: lab8
+
+    steps:
+      - name: Compute image ref from the build run
+        run: |
+          REPO_LC="${GITHUB_REPOSITORY,,}"
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          echo "IMAGE_REF=ghcr.io/${REPO_LC}:sha-${SHA}" >> $GITHUB_ENV
+          echo "Using image: $IMAGE_REF"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull image from GHCR
+        run: docker pull "$IMAGE_REF"
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: ${{ env.CLUSTER_NAME }}
+          wait: 120s
+
+      - name: Load image into kind
+        run: kind load docker-image "$IMAGE_REF" --name $CLUSTER_NAME
+
+      - name: Deploy app (Deployment + Service)
+        run: |
+          kubectl create ns lab8 || true
+          # deployment on port 3000
+          kubectl -n lab8 create deployment lab8 --image="$IMAGE_REF" --port=3000 \
+            --dry-run=client -o yaml | kubectl apply -f -
+          # service mapping 80 -> 3000
+          kubectl -n lab8 expose deployment lab8 --type=ClusterIP --port=80 --target-port=3000 \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n lab8 rollout status deploy/lab8 --timeout=120s
+
+      - name: Smoke test (in-cluster)
+        run: |
+          kubectl -n lab8 run tester --image=curlimages/curl:8.7.1 -i --restart=Never --rm \
+            -- curl -fsS http://lab8:80/ | tee smoke.txt
+
+      - name: Upload smoke output
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-output
+          path: smoke.txt
+
+      - name: Show resources
+        run: kubectl -n lab8 get all -o wide
