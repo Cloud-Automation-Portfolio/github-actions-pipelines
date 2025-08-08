@@ -55,7 +55,7 @@ jobs:
           sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
       - name: Update kubeconfig
-        run: aws eks update-kubeconfig --name hireme-eks-cluster --region us-east-1
+        run: aws eks update-kubeconfig --name hireme-eks --region us-east-1
 
       - name: Deploy to EKS
         run: kubectl apply -f k8s/
