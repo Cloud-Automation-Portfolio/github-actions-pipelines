@@ -7,23 +7,17 @@ on:
 
 permissions:
   contents: read
-  security-events: write   # needed for SARIF uploads
+  security-events: write
   actions: read
 
 jobs:
-  secrets-gitleaks:
-    name: Secrets — Gitleaks
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: gitleaks/gitleaks-action@v2
-
   secrets-trufflehog:
     name: Secrets — TruffleHog
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: trufflesecurity/trufflehog@main
+      # use a valid tag; v2 is stable. You can also use @main.
+      - uses: trufflesecurity/trufflehog@v2
         with:
           path: .
           json: true
@@ -38,14 +32,8 @@ jobs:
       actions: read
     steps:
       - uses: actions/checkout@v4
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@v3
         with:
           languages: javascript
-
-      - name: Autobuild (for compiled langs; harmless for JS)
-        uses: github/codeql-action/autobuild@v3
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/autobuild@v3
+      - uses: github/codeql-action/analyze@v3
