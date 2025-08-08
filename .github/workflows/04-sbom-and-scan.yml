@@ -1,61 +1,50 @@
 name: SBOM & Trivy Scan
 
 on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["build-push-sign"]
+    types:
+      - completed
 
 env:
-  OWNER_LC: ${{ github.repository_owner }}
-  REPO_LC: ${{ github.event.repository.name }}
+  REGISTRY: ghcr.io
+  IMAGE_NAME: cloud-automation-portfolio/github-actions-pipelines
 
 jobs:
-  sbom-trivy:
+  scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
 
     steps:
-      - name: Set lowercase values
-        run: |
-          echo "OWNER_LC=${OWNER_LC,,}" >> $GITHUB_ENV
-          echo "REPO_LC=${REPO_LC,,}" >> $GITHUB_ENV
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Pull image from GHCR
-        run: docker pull ghcr.io/${{ env.OWNER_LC }}/${{ env.REPO_LC }}:sha-${{ github.sha }}
+        run: |
+          IMAGE=$REGISTRY/${IMAGE_NAME}:sha-${{ github.event.workflow_run.head_sha }}
+          docker pull $IMAGE
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
 
-      - name: Run Syft (SBOM SPDX)
+      - name: Run Syft SBOM (SPDX)
         uses: anchore/sbom-action@v0
         with:
-          image: ghcr.io/${{ env.OWNER_LC }}/${{ env.REPO_LC }}:sha-${{ github.sha }}
-          format: spdx-json
+          image: ${{ env.IMAGE }}
           output-file: sbom-spdx.json
 
-      - name: Upload SBOM as artifact
-        uses: actions/upload-artifact@v4
+      - name: Run Trivy scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE }}
+          format: sarif
+          output: trivy.sarif
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v3
         with:
           name: sbom-spdx
           path: sbom-spdx.json
 
-      - name: Run Trivy scan
-        uses: aquasecurity/trivy-action@0.20.0
-        with:
-          image-ref: ghcr.io/${{ env.OWNER_LC }}/${{ env.REPO_LC }}:sha-${{ github.sha }}
-          format: sarif
-          output: trivy.sarif
-          severity: HIGH,CRITICAL
-          exit-code: 0
-
-      - name: Upload SARIF to Security tab
+      - name: Upload SARIF to security tab
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: trivy.sarif
