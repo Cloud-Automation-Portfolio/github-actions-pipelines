@@ -1,5 +1,11 @@
 name: SBOM & Trivy Scan
 
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
 env:
   OWNER_LC: ${{ github.repository_owner }}
   REPO_LC: ${{ github.event.repository.name }}
@@ -7,8 +13,7 @@ env:
 jobs:
   sbom-trivy:
     runs-on: ubuntu-latest
-    env:
-      IMAGE: ghcr.io/${{ env.OWNER_LC }}/github-actions-pipelines:sha-${{ github.sha }}
+
     steps:
       - name: Set lowercase values
         run: |
@@ -54,4 +59,3 @@ jobs:
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: trivy.sarif
-
