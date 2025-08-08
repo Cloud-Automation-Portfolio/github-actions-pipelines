@@ -1,0 +1,42 @@
+name: SBOM & Trivy Scan
+
+on:
+  workflow_run:
+    workflows: ["Build & Publish Image"]
+    types: [completed]
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}:sha-${{ github.event.workflow_run.head_sha }}
+
+jobs:
+  sbom:
+    name: Generate SBOM (Syft)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Syft SBOM (SPDX)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGE }}
+          artifact-name: sbom-spdx.json
+          format: spdx-json
+
+  trivy:
+    name: Trivy Image Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: ${{ env.IMAGE }}
+          format: 'sarif'
+          output: 'trivy.sarif'
+          vuln-type: 'os,library'
+          ignore-unfixed: true
+      - name: Upload SARIF to Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy.sarif
