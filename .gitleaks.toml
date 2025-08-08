@@ -1,0 +1,3 @@
+title = "Lab8 Gitleaks Config"
+[allowlist]
+paths = [".*\\.md", ".*\\.png", ".*\\.jpg"]
