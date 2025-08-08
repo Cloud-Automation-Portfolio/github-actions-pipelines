@@ -1,9 +1,13 @@
-name: Build, Push, Sign
+name: build-push-sign
 
 on:
   push:
     branches:
       - main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: cloud-automation-portfolio/github-actions-pipelines
 
 jobs:
   build:
@@ -11,33 +15,29 @@ jobs:
     permissions:
       contents: read
       packages: write
-
-    env:
-      REGISTRY: ghcr.io
+      id-token: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # Force repository name to lowercase for GHCR
-      - name: Set lowercase repo name
-        run: echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+      - uses: actions/checkout@v4
 
       - name: Log in to GHCR
         uses: docker/login-action@v2
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build image
-        run: docker build -t $REGISTRY/$REPO_LC:sha-${GITHUB_SHA} .
+        run: |
+          IMAGE_TAG=sha-${GITHUB_SHA}
+          docker build -t $REGISTRY/${IMAGE_NAME}:${IMAGE_TAG} .
+          echo "IMAGE=$REGISTRY/${IMAGE_NAME}:${IMAGE_TAG}" >> $GITHUB_ENV
 
       - name: Push image
-        run: docker push $REGISTRY/$REPO_LC:sha-${GITHUB_SHA}
+        run: docker push $IMAGE
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
 
       - name: Sign image (keyless)
-        run: cosign sign $REGISTRY/$REPO_LC:sha-${GITHUB_SHA} --yes
+        run: cosign sign $IMAGE --yes
