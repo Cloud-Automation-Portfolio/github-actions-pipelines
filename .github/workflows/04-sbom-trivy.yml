@@ -1,0 +1,59 @@
+name: SBOM & Trivy Scan
+
+on:
+  workflow_run:
+    workflows: ["build-push-sign"]
+    types:
+      - completed
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/github-actions-pipelines
+
+permissions:
+  contents: read
+  packages: read
+  security-events: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Set image reference from triggering workflow
+        run: echo "IMAGE_TAG=sha-${{ github.event.workflow_run.head_sha }}" >> $GITHUB_ENV
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull image from GHCR
+        run: docker pull $REGISTRY/${IMAGE_NAME,,}:$IMAGE_TAG
+
+      - name: Run Syft SBOM (SPDX)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME,, }}:${{ env.IMAGE_TAG }}
+          format: spdx-json
+          output-file: sbom-spdx.json
+
+      - name: Upload SBOM as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-spdx.json
+          path: sbom-spdx.json
+
+      - name: Run Trivy scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME,, }}:${{ env.IMAGE_TAG }}
+          format: sarif
+          output: trivy.sarif
+
+      - name: Upload SARIF to Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: trivy.sarif
