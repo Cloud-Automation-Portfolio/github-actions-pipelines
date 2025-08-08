@@ -15,16 +15,11 @@ jobs:
       security-events: write
 
     steps:
-      - name: Download image ref from previous workflow
-        uses: actions/download-artifact@v4
-        with:
-          name: image-ref
-          path: .
-      - name: Load IMAGE_REF
-        id: load
+      - name: Compute image ref from triggering run
         run: |
-          IMAGE_REF="$(cat image-ref.txt)"
-          echo "IMAGE_REF=$IMAGE_REF" >> $GITHUB_ENV
+          REPO_LC="${GITHUB_REPOSITORY,,}"
+          HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
+          echo "IMAGE_REF=ghcr.io/${REPO_LC}:sha-${HEAD_SHA}" >> $GITHUB_ENV
           echo "Using image: $IMAGE_REF"
 
       - name: Log in to GHCR
