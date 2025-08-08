@@ -1,0 +1,35 @@
+name: Security - Secrets & CodeQL
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  gitleaks:
+    name: Gitleaks (secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gitleaks/gitleaks-action@v2
+
+  trufflehog:
+    name: TruffleHog (secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: trufflesecurity/trufflehog@v3
+        with:
+          path: .
+          json: true
+          fail: true
+
+  codeql:
+    name: CodeQL (SAST)
+    uses: github/codeql-action/.github/workflows/codeql.yml@v3
+    with:
+      languages: javascript
