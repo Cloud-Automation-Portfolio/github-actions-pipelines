@@ -13,12 +13,7 @@ spec:
         app: lab8
     spec:
       containers:
-        - name: app
-          image: ghcr.io/${{ github.repository }}:sha-${GITHUB_SHA}
+        - name: lab8
+          image: nginx:latest
           ports:
-            - containerPort: 3000
-          readinessProbe:
-            httpGet:
-              path: /
-              port: 3000
-            periodSeconds: 5
+            - containerPort: 80
