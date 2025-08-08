@@ -1,9 +1,10 @@
 name: SBOM & Trivy Scan
 
 on:
-  workflow_run:
-    workflows: ["Build & Publish Image"]
-    types: [completed]
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
