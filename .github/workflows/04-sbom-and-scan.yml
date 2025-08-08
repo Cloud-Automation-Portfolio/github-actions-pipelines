@@ -1,17 +1,20 @@
 name: SBOM & Trivy Scan
 
-on:
-  workflow_dispatch:
-  push:
-    branches: [ "main" ]
+env:
+  OWNER_LC: ${{ github.repository_owner }}
+  REPO_LC: ${{ github.event.repository.name }}
 
 jobs:
   sbom-trivy:
     runs-on: ubuntu-latest
     env:
-      IMAGE: ghcr.io/<OWNER>/<REPO>:sha-${{ github.sha }}
-
+      IMAGE: ghcr.io/${{ env.OWNER_LC }}/github-actions-pipelines:sha-${{ github.sha }}
     steps:
+      - name: Set lowercase values
+        run: |
+          echo "OWNER_LC=${OWNER_LC,,}" >> $GITHUB_ENV
+          echo "REPO_LC=${REPO_LC,,}" >> $GITHUB_ENV
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -23,13 +26,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull image from GHCR
-        run: docker pull $IMAGE
+        run: docker pull ghcr.io/${{ env.OWNER_LC }}/${{ env.REPO_LC }}:sha-${{ github.sha }}
 
-      # ----- SBOM (Syft) -----
       - name: Run Syft (SBOM SPDX)
         uses: anchore/sbom-action@v0
         with:
-          image: ${{ env.IMAGE }}
+          image: ghcr.io/${{ env.OWNER_LC }}/${{ env.REPO_LC }}:sha-${{ github.sha }}
           format: spdx-json
           output-file: sbom-spdx.json
 
@@ -39,11 +41,10 @@ jobs:
           name: sbom-spdx
           path: sbom-spdx.json
 
-      # ----- Trivy -----
       - name: Run Trivy scan
         uses: aquasecurity/trivy-action@0.20.0
         with:
-          image-ref: ${{ env.IMAGE }}
+          image-ref: ghcr.io/${{ env.OWNER_LC }}/${{ env.REPO_LC }}:sha-${{ github.sha }}
           format: sarif
           output: trivy.sarif
           severity: HIGH,CRITICAL
@@ -53,3 +54,4 @@ jobs:
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: trivy.sarif
+
