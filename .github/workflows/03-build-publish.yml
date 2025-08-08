@@ -7,18 +7,19 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: cloud-automation-portfolio/github-actions-pipelines
+  IMAGE_NAME: ${{ github.repository_owner }}/github-actions-pipelines
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Log in to GHCR
         uses: docker/login-action@v2
@@ -30,14 +31,14 @@ jobs:
       - name: Build image
         run: |
           IMAGE_TAG=sha-${GITHUB_SHA}
-          docker build -t $REGISTRY/${IMAGE_NAME}:${IMAGE_TAG} .
-          echo "IMAGE=$REGISTRY/${IMAGE_NAME}:${IMAGE_TAG}" >> $GITHUB_ENV
+          docker build -t $REGISTRY/${IMAGE_NAME,,}:$IMAGE_TAG .
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
 
       - name: Push image
-        run: docker push $IMAGE
+        run: docker push $REGISTRY/${IMAGE_NAME,,}:$IMAGE_TAG
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
 
       - name: Sign image (keyless)
-        run: cosign sign $IMAGE --yes
+        run: cosign sign $REGISTRY/${IMAGE_NAME,,}:$IMAGE_TAG --yes
