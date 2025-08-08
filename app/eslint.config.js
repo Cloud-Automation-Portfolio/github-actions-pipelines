@@ -5,9 +5,12 @@ export default [
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
+      globals: {
+        process: "readonly",
+        console: "readonly"
+      }
     },
     rules: {
-      // keep it simple for the lab:
       "no-unused-vars": "warn",
       "no-undef": "error",
       "no-console": "off"
