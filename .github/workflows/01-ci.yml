@@ -27,7 +27,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: app
-        run: npm ci --ignore-scripts
+        run: npm install --ignore-scripts
 
       - name: Lint
         working-directory: app
