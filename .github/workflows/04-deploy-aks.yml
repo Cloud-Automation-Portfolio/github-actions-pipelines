@@ -1,0 +1,42 @@
+name: Deploy to AKS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - "k8s/**"
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
+  AKS: ${{ secrets.AKS_CLUSTER_NAME }}
+  NAMESPACE: lab8
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: aks-staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ env.RG }}
+          cluster-name: ${{ env.AKS }}
+
+      - run: kubectl get ns $NAMESPACE || kubectl create ns $NAMESPACE
+      - run: kubectl apply -n $NAMESPACE -f k8s/deployment.yaml
+      - run: kubectl apply -n $NAMESPACE -f k8s/service.yaml
+      - run: kubectl rollout status deploy/lab8 -n $NAMESPACE
+      - run: kubectl get pods -n $NAMESPACE -o wide
+      - run: kubectl get svc lab8 -n $NAMESPACE -o wide
