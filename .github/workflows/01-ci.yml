@@ -1,74 +1,90 @@
-name: CI Pipeline
+name: CI — Lint & Test
 
 on:
+  pull_request:
+    paths:
+      - 'app/**'
+      - '.github/workflows/01-ci.yml'
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch: {}   # allows manual run from Actions tab
+    paths:
+      - 'app/**'
+      - '.github/workflows/01-ci.yml'
+
+# Fail-fast UX and cut wasted minutes on superseded runs
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least-privilege for CI
+permissions:
+  contents: read
 
 jobs:
-  build:
-    name: Build and Test
-    runs-on: ubuntu-latest
+  node-tests:
+    name: Node ${{ matrix.node }} • ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20]
+        os: [ubuntu-latest]
+    env:
+      CI: true
+      WD: app
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # Only run Node steps if a package.json exists (root or app/)
-      - name: Locate package.json
-        id: pkgloc
-        run: |
-          if [ -f package.json ]; then echo "path=." >> $GITHUB_OUTPUT; exit 0; fi
-          if [ -f app/package.json ]; then echo "path=app" >> $GITHUB_OUTPUT; exit 0; fi
-          echo "path=" >> $GITHUB_OUTPUT
-
-      - name: Setup Node
-        if: steps.pkgloc.outputs.path != ''
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: ${{ env.WD }}/package-lock.json
 
-      - name: Install
-        if: steps.pkgloc.outputs.path != ''
-        working-directory: ${{ steps.pkgloc.outputs.path }}
-        run: npm ci || npm install
+      - name: Install dependencies (frozen)
+        working-directory: ${{ env.WD }}
+        run: npm ci --ignore-scripts
 
       - name: Lint
-        if: steps.pkgloc.outputs.path != ''
-        working-directory: ${{ steps.pkgloc.outputs.path }}
-        run: npm run lint --if-present
+        working-directory: ${{ env.WD }}
+        run: npm run lint
 
       - name: Test
-        if: steps.pkgloc.outputs.path != ''
-        working-directory: ${{ steps.pkgloc.outputs.path }}
-        run: npm test --if-present
+        working-directory: ${{ env.WD }}
+        run: npm test -- --test-reporter=spec
 
-  deploy-aks:
-    name: Deploy to Staging (Azure AKS)
-    needs: [ build ]
+      - name: Upload CI logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-node${{ matrix.node }}-${{ matrix.os }}
+          path: ${{ env.WD }}/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo "### CI — Lint & Test" >> $GITHUB_STEP_SUMMARY
+          echo "- Node: ${{ matrix.node }}" >> $GITHUB_STEP_SUMMARY
+          echo "- OS:   ${{ matrix.os }}" >> $GITHUB_STEP_SUMMARY
+
+  dependency-review:
+    name: Dependency Review (PR only)
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
       contents: read
+      pull-requests: read
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Azure login (OIDC)
-        uses: azure/login@v2
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Dependency review
+        uses: actions/dependency-review-action@v4
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Get AKS credentials
-        run: az aks get-credentials -g hireme-rg2 -n hireme-aks2 --overwrite-existing
-
-      - name: Deploy manifests
-        run: kubectl apply -f k8s/
-
-      - name: Verify rollout
-        run: |
-          kubectl rollout status deploy/lab8 --timeout=120s
-          kubectl get pods -o wide
-          kubectl get svc -o wide
+          allow-licenses: ''
+          fail-on-severity: high
 
