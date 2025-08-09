@@ -1,0 +1,75 @@
+name: deploy-to-aks
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
+  AKS: ${{ secrets.AKS_CLUSTER_NAME }}
+  NAMESPACE: lab8
+  RELEASE: lab8
+  IMAGE: ghcr.io/${{ github.repository }}/lab8:sha-${{ github.sha }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: aks-staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get AKS credentials
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ env.RG }}
+          cluster-name: ${{ env.AKS }}
+
+      - name: Create namespace (idempotent)
+        run: |
+          kubectl get ns "$NAMESPACE" || kubectl create ns "$NAMESPACE"
+
+      - name: Helm upgrade (deploy)
+        id: helm
+        run: |
+          IMAGE_REPO="${IMAGE%:*}"
+          IMAGE_TAG="${IMAGE##*:}"
+
+          helm upgrade --install "$RELEASE" ./helm \
+            --namespace "$NAMESPACE" \
+            --set image.repository="$IMAGE_REPO" \
+            --set image.tag="$IMAGE_TAG" \
+            --wait --timeout 5m
+
+      - name: Show rollout + service and URL
+        id: status
+        run: |
+          kubectl rollout status deploy/"$RELEASE" -n "$NAMESPACE"
+          kubectl get pods -n "$NAMESPACE" -o wide
+          kubectl get svc "$RELEASE" -n "$NAMESPACE" -o wide
+
+          IP=$(kubectl get svc "$RELEASE" -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          if [ -n "$IP" ]; then
+            echo "APP_URL=http://$IP" >> "$GITHUB_OUTPUT"
+            {
+              echo "### AKS App URL"
+              echo "http://$IP"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload helm/k8s (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: aks_kubectl_output
+          path: ./helm
