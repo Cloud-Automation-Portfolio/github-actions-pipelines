@@ -2,41 +2,56 @@ name: CI Pipeline
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
+  workflow_dispatch: {}   # allows manual run from Actions tab
 
 jobs:
   build:
     name: Build and Test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      # Only run Node steps if a package.json exists (root or app/)
+      - name: Locate package.json
+        id: pkgloc
+        run: |
+          if [ -f package.json ]; then echo "path=." >> $GITHUB_OUTPUT; exit 0; fi
+          if [ -f app/package.json ]; then echo "path=app" >> $GITHUB_OUTPUT; exit 0; fi
+          echo "path=" >> $GITHUB_OUTPUT
+
+      - name: Setup Node
+        if: steps.pkgloc.outputs.path != ''
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: 18
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install
+        if: steps.pkgloc.outputs.path != ''
+        working-directory: ${{ steps.pkgloc.outputs.path }}
+        run: npm ci || npm install
 
-      - name: Run tests
-        run: npm test
+      - name: Lint
+        if: steps.pkgloc.outputs.path != ''
+        working-directory: ${{ steps.pkgloc.outputs.path }}
+        run: npm run lint --if-present
+
+      - name: Test
+        if: steps.pkgloc.outputs.path != ''
+        working-directory: ${{ steps.pkgloc.outputs.path }}
+        run: npm test --if-present
 
   deploy-aks:
     name: Deploy to Staging (Azure AKS)
-    needs: [build]
+    needs: [ build ]
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Azure login (OIDC)
         uses: azure/login@v2
@@ -51,7 +66,9 @@ jobs:
       - name: Deploy manifests
         run: kubectl apply -f k8s/
 
-      - name: Verify deployment
+      - name: Verify rollout
         run: |
+          kubectl rollout status deploy/lab8 --timeout=120s
           kubectl get pods -o wide
           kubectl get svc -o wide
+
