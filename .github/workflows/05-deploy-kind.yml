@@ -1,70 +1,47 @@
-name: Deploy to kind
+name: Deploy — kind (no-cloud smoke)
 
 on:
-  workflow_run:
-    workflows: [ "build-push-sign" ]   # run after the image is built
-    types: [ completed ]
+  pull_request:
+    paths:
+      - 'k8s/**'
+      - 'app/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+  kind-deploy:
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      packages: read
-
-    env:
-      CLUSTER_NAME: lab8
-
+    timeout-minutes: 15
     steps:
-      - name: Compute image ref from the build run
-        run: |
-          REPO_LC="${GITHUB_REPOSITORY,,}"
-          SHA="${{ github.event.workflow_run.head_sha }}"
-          echo "IMAGE_REF=ghcr.io/${REPO_LC}:sha-${SHA}" >> $GITHUB_ENV
-          echo "Using image: $IMAGE_REF"
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull image from GHCR
-        run: docker pull "$IMAGE_REF"
+      - uses: actions/checkout@v4
 
       - name: Create kind cluster
         uses: helm/kind-action@v1
         with:
-          cluster_name: ${{ env.CLUSTER_NAME }}
+          cluster_name: lab8
           wait: 120s
 
-      - name: Load image into kind
-        run: kind load docker-image "$IMAGE_REF" --name $CLUSTER_NAME
-
-      - name: Deploy app (Deployment + Service)
+      - name: Set image to current commit + apply
         run: |
           kubectl create ns lab8 || true
-          # deployment on port 3000
-          kubectl -n lab8 create deployment lab8 --image="$IMAGE_REF" --port=3000 \
-            --dry-run=client -o yaml | kubectl apply -f -
-          # service mapping 80 -> 3000
-          kubectl -n lab8 expose deployment lab8 --type=ClusterIP --port=80 --target-port=3000 \
-            --dry-run=client -o yaml | kubectl apply -f -
-          kubectl -n lab8 rollout status deploy/lab8 --timeout=120s
+          IMG="ghcr.io/${{ github.repository }}:sha-${{ github.sha }}"
+          # Replace image in deployment.yaml on the fly and apply
+          sed -e "s|ghcr.io/.\\+|$IMG|g" k8s/deployment.yaml | kubectl -n lab8 apply -f -
+          kubectl -n lab8 apply -f k8s/service.yaml
 
-      - name: Smoke test (in-cluster)
+      - name: Wait for rollout
+        run: kubectl -n lab8 rollout status deploy/lab8 --timeout=90s
+
+      - name: Smoke test
         run: |
-          kubectl -n lab8 run tester --image=curlimages/curl:8.7.1 -i --restart=Never --rm \
-            -- curl -fsS http://lab8:80/ | tee smoke.txt
+          kubectl -n lab8 port-forward svc/lab8 8080:80 &
+          sleep 3
+          curl -fsS http://localhost:8080/ | head -n1
 
-      - name: Upload smoke output
-        uses: actions/upload-artifact@v4
-        with:
-          name: smoke-output
-          path: smoke.txt
-
-      - name: Show resources
-        run: kubectl -n lab8 get all -o wide
+      - name: Summary
+        run: |
+          echo "### kind deploy OK" >> $GITHUB_STEP_SUMMARY
+          kubectl -n lab8 get pods -o wide >> $GITHUB_STEP_SUMMARY
+          kubectl -n lab8 get svc lab8 -o wide >> $GITHUB_STEP_SUMMARY
