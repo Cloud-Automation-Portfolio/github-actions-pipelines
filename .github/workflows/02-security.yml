@@ -1,11 +1,11 @@
 name: Security — Secrets & CodeQL
 
 on:
+  pull_request:
   push:
     branches: [ main ]
-  pull_request:
   schedule:
-    - cron: "0 3 * * *"  # daily sweep
+    - cron: "0 3 * * *"
 
 permissions:
   contents: read
@@ -13,38 +13,26 @@ permissions:
   actions: read
 
 jobs:
-  secrets-trufflehog:
-    name: Secrets — TruffleHog
+  gitleaks:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      # Pin to a known working tag; avoids "version not found"
-      - name: Run TruffleHog
-        uses: trufflesecurity/trufflehog@v3.63.8
+      - uses: actions/checkout@v4
+      - uses: gitleaks/gitleaks-action@v2
+        with:
+          config-path: .gitleaks.toml
+
+  trufflehog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: trufflesecurity/trufflehog@v3
         with:
           path: .
           json: true
-          entropy: true
-          regex: true
           fail: true
 
   codeql:
-    name: SAST — CodeQL (JavaScript)
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: javascript
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
-      - name: Analyze
-        uses: github/codeql-action/analyze@v3
+    uses: github/codeql-action/.github/workflows/codeql.yml@v3
+    with:
+      languages: javascript
 
