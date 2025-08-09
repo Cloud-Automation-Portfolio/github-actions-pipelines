@@ -1,0 +1,29 @@
+name: Deploy to EKS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - "k8s/**"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: eks-staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::<account-id>:role/GitHubActionsDeployRole
+          aws-region: us-east-1
+      - run: aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region us-east-1
+      - run: kubectl apply -f k8s/deployment.yaml
+      - run: kubectl apply -f k8s/service.yaml
+      - run: kubectl rollout status deploy/lab8 -n lab8
+      - run: kubectl get pods -n lab8
+      - run: kubectl get svc lab8 -n lab8 -o wide
