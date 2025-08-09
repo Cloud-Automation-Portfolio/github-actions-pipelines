@@ -1,4 +1,4 @@
-# GitHub Actions Cloud CI/CD Lab
+# GitHub Actions Multi-Cloud CI/CD Lab
 
 End-to-end CI/CD pipelines deploying to **AWS EKS** and **Azure AKS** with security-by-default: OIDC, RBAC, CodeQL, secret scanning, SLSA provenance and hardened branch protections.
 
@@ -72,7 +72,7 @@ This project mitigates those risks with **OIDC, RBAC, enforced PR review, mandat
 
 ## Diagram
 
-![Pipeline Diagram](diagram.png)
+![Pipeline Diagram](final_diagram.png)
 
 ---
 
@@ -204,3 +204,4 @@ Sebastian Silva C. – August 2025 – Berlin, Germany
 - [LinkedIn](https://www.linkedin.com/in/sebastiansilc/)  
 - [GitHub](https://github.com/SebaSilC)  
 - [sebastian@playbookvisualarts.com](mailto:sebastian@playbookvisualarts.com)
+
