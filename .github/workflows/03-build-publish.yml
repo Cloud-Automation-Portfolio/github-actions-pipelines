@@ -1,46 +1,53 @@
-name: build-push-sign
+name: Build • SBOM • Scan • Sign
 
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+  security-events: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # Compute lowercase repo and image ref once
-      - name: Compute image ref
-        id: img
-        run: |
-          REPO_LC="${GITHUB_REPOSITORY,,}"
-          echo "REPO_LC=$REPO_LC" >> $GITHUB_ENV
-          echo "IMAGE_REF=ghcr.io/${REPO_LC}:sha-${GITHUB_SHA}" >> $GITHUB_ENV
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build image
-        run: docker build -t "$IMAGE_REF" .
+      - run: docker build -t $REGISTRY/$IMAGE_NAME:sha-${GITHUB_SHA} .
 
-      - name: Push image
-        run: docker push "$IMAGE_REF"
+      - uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          artifact-name: sbom-spdx.json
+          format: spdx-json
 
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+      - run: docker push $REGISTRY/$IMAGE_NAME:sha-${GITHUB_SHA}
 
-      - name: Sign image (keyless)
-        env:
-          COSIGN_EXPERIMENTAL: "true"
-        run: cosign sign --yes "$IMAGE_REF"
+      - uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+        with:
+          image: ghcr.io/${{ github.repository }}
+          digest: ${{ steps.build.outputs.digest }}
+
+      - uses: sigstore/cosign-installer@v3
+      - run: |
+          COSIGN_EXPERIMENTAL=true cosign sign $REGISTRY/$IMAGE_NAME:sha-${GITHUB_SHA}
+
+  scan:
+    needs: build
+    uses: ./.github/workflows/reusable-scan-image.yml
+    with:
+      image: ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
