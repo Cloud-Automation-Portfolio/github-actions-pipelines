@@ -2,36 +2,35 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   build:
+    name: Build and Test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
       - name: Install dependencies
-        working-directory: app
         run: npm install
 
-      - name: Lint
-        working-directory: app
-        run: npm run lint
-
-      - name: Test
-        working-directory: app
+      - name: Run tests
         run: npm test
 
-  deploy-staging:
-    name: Deploy to Staging (AWS EKS)
+  deploy-aks:
+    name: Deploy to Staging (Azure AKS)
     needs: [build]
     runs-on: ubuntu-latest
-    environment:
-      name: staging
-      url: https://staging.example.com
     permissions:
       id-token: write
       contents: read
@@ -39,25 +38,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        timeout-minutes: 2
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
         with:
-          role-to-assume: arn:aws:iam::788670788114:role/GitHubActionsEKSDeployRole
-          aws-region: us-east-1
-          role-session-name: github-actions
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Install AWS CLI v2 and kubectl
+      - name: Get AKS credentials
+        run: az aks get-credentials -g hireme-rg2 -n hireme-aks2 --overwrite-existing
+
+      - name: Deploy manifests
+        run: kubectl apply -f k8s/
+
+      - name: Verify deployment
         run: |
-          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-          unzip awscliv2.zip
-          sudo ./aws/install --update
-          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-
-      - name: Update kubeconfig
-        run: aws eks update-kubeconfig --name hireme-eks --region us-east-1
-
-      - name: Deploy to EKS
-        run: kubectl apply --validate=false -f k8s/
-
+          kubectl get pods -o wide
+          kubectl get svc -o wide
