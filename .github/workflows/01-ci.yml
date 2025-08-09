@@ -11,12 +11,10 @@ on:
       - 'app/**'
       - '.github/workflows/01-ci.yml'
 
-# Fail-fast UX and cut wasted minutes on superseded runs
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Least-privilege for CI
 permissions:
   contents: read
 
@@ -34,57 +32,39 @@ jobs:
       CI: true
       WD: app
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
           cache: npm
           cache-dependency-path: ${{ env.WD }}/package-lock.json
-
-      - name: Install dependencies (frozen)
+      - run: npm ci --ignore-scripts
         working-directory: ${{ env.WD }}
-        run: npm ci --ignore-scripts
-
-      - name: Lint
+      - run: npm run lint
         working-directory: ${{ env.WD }}
-        run: npm run lint
-
-      - name: Test
+      - run: npm test -- --test-reporter=spec
         working-directory: ${{ env.WD }}
-        run: npm test -- --test-reporter=spec
-
-      - name: Upload CI logs (always)
-        if: always()
+      - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ci-logs-node${{ matrix.node }}-${{ matrix.os }}
           path: ${{ env.WD }}/
           if-no-files-found: ignore
           retention-days: 7
-
-      - name: Job summary
-        if: always()
+      - if: always()
         run: |
           echo "### CI — Lint & Test" >> $GITHUB_STEP_SUMMARY
           echo "- Node: ${{ matrix.node }}" >> $GITHUB_STEP_SUMMARY
           echo "- OS:   ${{ matrix.os }}" >> $GITHUB_STEP_SUMMARY
 
   dependency-review:
-    name: Dependency Review (PR only)
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Dependency review
-        uses: actions/dependency-review-action@v4
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
         with:
-          allow-licenses: ''
           fail-on-severity: high
-
