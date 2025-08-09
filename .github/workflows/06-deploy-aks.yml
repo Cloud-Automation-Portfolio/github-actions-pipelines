@@ -13,7 +13,6 @@ env:
   RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
   AKS: ${{ secrets.AKS_CLUSTER_NAME }}
   NAMESPACE: lab8
-  RELEASE: lab8
   IMAGE: ghcr.io/${{ github.repository }}/lab8:sha-${{ github.sha }}
 
 jobs:
@@ -40,36 +39,22 @@ jobs:
         run: |
           kubectl get ns "$NAMESPACE" || kubectl create ns "$NAMESPACE"
 
-      - name: Helm upgrade (deploy)
-        id: helm
+      - name: Deploy manifests
         run: |
-          IMAGE_REPO="${IMAGE%:*}"
-          IMAGE_TAG="${IMAGE##*:}"
+          kubectl apply -n "$NAMESPACE" -f k8s/deployment.yaml
+          kubectl apply -n "$NAMESPACE" -f k8s/service.yaml
 
-          helm upgrade --install "$RELEASE" ./helm \
-            --namespace "$NAMESPACE" \
-            --set image.repository="$IMAGE_REPO" \
-            --set image.tag="$IMAGE_TAG" \
-            --wait --timeout 5m
-
-      - name: Show rollout + service and URL
-        id: status
+      - name: Wait for rollout
         run: |
-          kubectl rollout status deploy/"$RELEASE" -n "$NAMESPACE"
+          kubectl rollout status deploy/lab8 -n "$NAMESPACE"
+
+      - name: Show services and pods
+        run: |
           kubectl get pods -n "$NAMESPACE" -o wide
-          kubectl get svc "$RELEASE" -n "$NAMESPACE" -o wide
-
-          IP=$(kubectl get svc "$RELEASE" -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          kubectl get svc lab8 -n "$NAMESPACE" -o wide
+          IP=$(kubectl get svc lab8 -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
           if [ -n "$IP" ]; then
-            echo "APP_URL=http://$IP" >> "$GITHUB_OUTPUT"
-            {
-              echo "### AKS App URL"
-              echo "http://$IP"
-            } >> "$GITHUB_STEP_SUMMARY"
+            echo "APP_URL=http://$IP" >> $GITHUB_OUTPUT
+            echo "### AKS App URL" >> $GITHUB_STEP_SUMMARY
+            echo "http://$IP" >> $GITHUB_STEP_SUMMARY
           fi
-
-      - name: Upload helm/k8s (artifact)
-        uses: actions/upload-artifact@v4
-        with:
-          name: aks_kubectl_output
-          path: ./helm
