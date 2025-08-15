@@ -116,11 +116,11 @@ This project mitigates those risks with **OIDC, RBAC, enforced PR review, mandat
    - Generated SLSA provenance *(Screenshot: `ghcr_package_published.png`, `sbom_artifact.png`, `build_push_sign_success.png`, `sigstore_verification.png` & `slsa_provenance.png`)*
 
 **6. Deploy to Kubernetes**
-   ***6A. AWS EKS Deploy***  
+   **6A. AWS EKS Deploy** 
       - Created EKS cluster, OIDC role, RBAC config.
       - Helm deploy via Actions *(Screenshot: `eks_nodes_ready.png`, `step-aws-eks-role-permissions.png`, `eks_oidc_role.png`, `eks_kubectl_apply_success.png` & `eks_app_running.png`)*
 
-   ***6B. Azure AKS Deploy***  
+   **6B. Azure AKS Deploy**  
       - Created AKS cluster, OIDC app reg, RBAC assignment.
       - Deploy manifests via Actions *(Screenshot: `aks_nodes_ready.png`, `aks_github_secrets.png`, `aks_oidc_app.png`, `aks_rbac_role_assignment.png`, `aks_helm_deploy_success.png`, `aks_kubectl_apply_success.png`, `aks_app_running.png` & `aks_app_browser.png`)*
 
@@ -204,4 +204,5 @@ Sebastian Silva C. – August 2025 – Berlin, Germany
 - [LinkedIn](https://www.linkedin.com/in/sebastiansilc/)  
 - [GitHub](https://github.com/SebaSilC)  
 - [sebastian@playbookvisualarts.com](mailto:sebastian@playbookvisualarts.com)
+
 
