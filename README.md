@@ -124,13 +124,8 @@ This project mitigates those risks with **OIDC, RBAC, enforced PR review, mandat
       - Created AKS cluster, OIDC app reg, RBAC assignment.
       - Deploy manifests via Actions *(Screenshot: `aks_nodes_ready.png`, `aks_github_secrets.png`, `aks_oidc_app.png`, `aks_rbac_role_assignment.png`, `aks_helm_deploy_success.png`, `aks_kubectl_apply_success.png`, `aks_app_running.png` & `aks_app_browser.png`)*
 
-**7. Make It Obviously Secure**  
-   - Re-enabled strict branch protections.
-   - Required status checks for all PRs *(Screenshot: `branch_protection.png`)*
-
-**8. Cleanup**  
-   - Deleted Azure resource group to avoid costs:
-   *bash   az group delete -n hireme-rg2 --yes --no-wait*
+**7. Cleanup**  
+   - Deleted Azure resource group to avoid costs *(Screenshot: `azure_rg_delete.png`)*
 
 ---
 
@@ -167,8 +162,7 @@ This project mitigates those risks with **OIDC, RBAC, enforced PR review, mandat
 | 6B   | aks_kubectl_apply_success.png     | AKS kubectl apply success                         |
 | 6B   | aks_app_running.png               | AKS pods and service running                      |
 | 6B   | aks_app_browser.png               | Browser showing app via AKS LoadBalancer          |
-| 7    | branch_protection.png             | Final branch protection rules                     |
-| 8    | azure_rg_delete.png               | Azure resource group deletion                     |
+| 7    | azure_rg_delete.png               | Azure resource group deletion                     |
 
 ---
 
@@ -204,5 +198,6 @@ Sebastian Silva C. – August 2025 – Berlin, Germany
 - [LinkedIn](https://www.linkedin.com/in/sebastiansilc/)  
 - [GitHub](https://github.com/SebaSilC)  
 - [sebastian@playbookvisualarts.com](mailto:sebastian@playbookvisualarts.com)
+
 
 
