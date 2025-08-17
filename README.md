@@ -131,7 +131,7 @@ This project mitigates those risks with **OIDC, RBAC, enforced PR review, mandat
 
 ## Screenshots
 
-*All screenshots are included in the screenshots/ folder.*
+*All screenshots are included in the `screenshots/` folder.*
 
 | Step | Filename                          | Description                                       |
 | ---- | --------------------------------- | ------------------------------------------------- |
@@ -198,6 +198,7 @@ Sebastian Silva C. – August 2025 – Berlin, Germany
 - [LinkedIn](https://www.linkedin.com/in/sebastiansilc/)  
 - [GitHub](https://github.com/SebaSilC)  
 - [sebastian@playbookvisualarts.com](mailto:sebastian@playbookvisualarts.com)
+
 
 
 
